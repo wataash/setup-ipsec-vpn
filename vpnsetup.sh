@@ -1,4 +1,7 @@
 #!/bin/sh
+
+# https://scrapbox.io/wataash/setup-ipsec-vpn
+
 #
 # Script for automatic setup of an IPsec VPN server on Ubuntu LTS and Debian.
 # Works on any dedicated server or virtual private server (VPS) except OpenVZ.
@@ -24,9 +27,9 @@
 # - All values MUST be placed inside 'single quotes'
 # - DO NOT use these special characters within values: \ " '
 
-YOUR_IPSEC_PSK=''
-YOUR_USERNAME=''
-YOUR_PASSWORD=''
+YOUR_IPSEC_PSK='psk'
+YOUR_USERNAME='usr'
+YOUR_PASSWORD='pass'
 
 # Important notes:   https://git.io/vpnnotes
 # Setup VPN clients: https://git.io/vpnclients
@@ -34,6 +37,7 @@ YOUR_PASSWORD=''
 # =====================================================
 
 export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+# 2019-10-13-13:25:02
 SYS_DT=$(date +%F-%T)
 
 exiterr()  { echo "Error: $1" >&2; exit 1; }
@@ -48,6 +52,7 @@ check_ip() {
 
 vpnsetup() {
 
+# Ubuntu
 os_type=$(lsb_release -si 2>/dev/null)
 if [ -z "$os_type" ]; then
   [ -f /etc/os-release  ] && os_type=$(. /etc/os-release  && printf '%s' "$ID")
@@ -66,11 +71,14 @@ if [ -f /proc/user_beancounters ]; then
 fi
 
 if [ "$(id -u)" != 0 ]; then
-  exiterr "Script must be run as root. Try 'sudo sh $0'"
+  # exiterr "Script must be run as root. Try 'sudo sh $0'"
+  bigecho "Script must be run as root. Try 'sudo sh $0'"
 fi
 
+# bnep0
 def_iface=$(route 2>/dev/null | grep -m 1 '^default' | grep -o '[^ ]*$')
 [ -z "$def_iface" ] && def_iface=$(ip -4 route list 0/0 2>/dev/null | grep -m 1 -Po '(?<=dev )(\S+)')
+# unknown
 def_state=$(cat "/sys/class/net/$def_iface/operstate" 2>/dev/null)
 if [ -n "$def_state" ] && [ "$def_state" != "down" ]; then
   if ! uname -m | grep -qi '^arm'; then
@@ -80,6 +88,7 @@ if [ -n "$def_state" ] && [ "$def_state" != "down" ]; then
         ;;
     esac
   fi
+  # bnep0
   NET_IFACE="$def_iface"
 else
   eth0_state=$(cat "/sys/class/net/eth0/operstate" 2>/dev/null)
@@ -135,12 +144,12 @@ done
 bigecho "Populating apt-get cache..."
 
 export DEBIAN_FRONTEND=noninteractive
-apt-get -yq update || exiterr "'apt-get update' failed."
+# apt-get -yq update || exiterr "'apt-get update' failed."
 
 bigecho "Installing packages required for setup..."
 
-apt-get -yq install wget dnsutils openssl \
-  iptables iproute2 gawk grep sed net-tools || exiterr2
+# apt-get -yq install wget dnsutils openssl \
+#   iptables iproute2 gawk grep sed net-tools || exiterr2
 
 bigecho "Trying to auto discover IP of this server..."
 
@@ -159,14 +168,14 @@ check_ip "$PUBLIC_IP" || exiterr "Cannot detect this server's public IP. Edit th
 
 bigecho "Installing packages required for the VPN..."
 
-apt-get -yq install libnss3-dev libnspr4-dev pkg-config \
-  libpam0g-dev libcap-ng-dev libcap-ng-utils libselinux1-dev \
-  libcurl4-nss-dev flex bison gcc make libnss3-tools \
-  libevent-dev ppp xl2tpd || exiterr2
+# apt-get -yq install libnss3-dev libnspr4-dev pkg-config \
+#   libpam0g-dev libcap-ng-dev libcap-ng-utils libselinux1-dev \
+#   libcurl4-nss-dev flex bison gcc make libnss3-tools \
+#   libevent-dev ppp xl2tpd || exiterr2
 
 bigecho "Installing Fail2Ban to protect SSH..."
 
-apt-get -yq install fail2ban || exiterr2
+# apt-get -yq install fail2ban || exiterr2
 
 bigecho "Compiling and installing Libreswan..."
 
@@ -174,11 +183,11 @@ SWAN_VER=3.29
 swan_file="libreswan-$SWAN_VER.tar.gz"
 swan_url1="https://github.com/libreswan/libreswan/archive/v$SWAN_VER.tar.gz"
 swan_url2="https://download.libreswan.org/$swan_file"
-if ! { wget -t 3 -T 30 -nv -O "$swan_file" "$swan_url1" || wget -t 3 -T 30 -nv -O "$swan_file" "$swan_url2"; }; then
-  exit 1
-fi
-/bin/rm -rf "/opt/src/libreswan-$SWAN_VER"
-tar xzf "$swan_file" && /bin/rm -f "$swan_file"
+# if ! { wget -t 3 -T 30 -nv -O "$swan_file" "$swan_url1" || wget -t 3 -T 30 -nv -O "$swan_file" "$swan_url2"; }; then
+#   exit 1
+# fi
+# /bin/rm -rf "/opt/src/libreswan-$SWAN_VER"
+# tar xzf "$swan_file" # && /bin/rm -f "$swan_file"
 cd "libreswan-$SWAN_VER" || exit 1
 cat > Makefile.inc.local <<'EOF'
 WERROR_CFLAGS =
@@ -188,15 +197,15 @@ USE_NSS_AVA_COPY = true
 USE_NSS_IPSEC_PROFILE = false
 USE_GLIBC_KERN_FLIP_HEADERS = true
 EOF
-if [ "$(packaging/utils/lswan_detect.sh init)" = "systemd" ]; then
-  apt-get -yq install libsystemd-dev || exiterr2
-fi
+# if [ "$(packaging/utils/lswan_detect.sh init)" = "systemd" ]; then
+#   apt-get -yq install libsystemd-dev || exiterr2
+# fi
 NPROCS=$(grep -c ^processor /proc/cpuinfo)
 [ -z "$NPROCS" ] && NPROCS=1
-make "-j$((NPROCS+1))" -s base && make -s install-base
+# make "-j$((NPROCS+1))" -s base && make -s install-base
 
 cd /opt/src || exit 1
-/bin/rm -rf "/opt/src/libreswan-$SWAN_VER"
+# /bin/rm -rf "/opt/src/libreswan-$SWAN_VER"
 if ! /usr/local/sbin/ipsec --version 2>/dev/null | grep -qF "$SWAN_VER"; then
   exiterr "Libreswan $SWAN_VER failed to build."
 fi
@@ -213,9 +222,25 @@ DNS_SRV2=${VPN_DNS_SRV2:-'8.8.4.4'}
 DNS_SRVS="\"$DNS_SRV1 $DNS_SRV2\""
 [ -n "$VPN_DNS_SRV1" ] && [ -z "$VPN_DNS_SRV2" ] && DNS_SRVS="$DNS_SRV1"
 
+if false; then
+# only at first time:
+mkdir -p ~/usr/etc/xl2tpd/
+mkdir -p ~/usr/etc/ppp/
+mkdir -p ~/usr/etc/ipsec.d/
+sudo cp /etc/ipsec.conf         /etc/ipsec.conf.orig
+sudo cp /etc/ipsec.secrets      /etc/ipsec.secrets.orig
+sudo cp /etc/xl2tpd/xl2tpd.conf /etc/xl2tpd/xl2tpd.conf.orig
+sudo cp /etc/ppp/options.xl2tpd /etc/ppp/options.xl2tpd.orig  # ENOENT
+sudo cp /etc/ppp/chap-secrets   /etc/ppp/chap-secrets.orig
+sudo cp /etc/ipsec.d/passwd     /etc/ipsec.d/passwd.orig      # ENOENT
+sudo cp /etc/sysctl.conf        /etc/sysctl.conf.orig
+sudo cp /etc/rc.local           /etc/rc.local.orig            # ENOENT
+fi
+
 # Create IPsec config
-conf_bk "/etc/ipsec.conf"
-cat > /etc/ipsec.conf <<EOF
+# conf_bk "/etc/ipsec.conf"
+# cat > /etc/ipsec.conf <<EOF
+cat > ~/usr/etc/ipsec.conf <<EOF
 version 2.0
 
 config setup
@@ -270,14 +295,16 @@ if uname -m | grep -qi '^arm'; then
 fi
 
 # Specify IPsec PSK
-conf_bk "/etc/ipsec.secrets"
-cat > /etc/ipsec.secrets <<EOF
+# conf_bk "/etc/ipsec.secrets"
+# cat > /etc/ipsec.secrets <<EOF
+cat > ~/usr/etc/ipsec.secrets <<EOF
 %any  %any  : PSK "$VPN_IPSEC_PSK"
 EOF
 
 # Create xl2tpd config
-conf_bk "/etc/xl2tpd/xl2tpd.conf"
-cat > /etc/xl2tpd/xl2tpd.conf <<EOF
+# conf_bk "/etc/xl2tpd/xl2tpd.conf"
+# cat > /etc/xl2tpd/xl2tpd.conf <<EOF
+cat > ~/usr/etc/xl2tpd/xl2tpd.conf <<EOF
 [global]
 port = 1701
 
@@ -293,8 +320,9 @@ length bit = yes
 EOF
 
 # Set xl2tpd options
-conf_bk "/etc/ppp/options.xl2tpd"
-cat > /etc/ppp/options.xl2tpd <<EOF
+# conf_bk "/etc/ppp/options.xl2tpd"
+# cat > /etc/ppp/options.xl2tpd <<EOF
+cat > ~/usr/etc/ppp/options.xl2tpd <<EOF
 +mschap-v2
 ipcp-accept-local
 ipcp-accept-remote
@@ -310,24 +338,42 @@ ms-dns $DNS_SRV1
 EOF
 
 if [ -z "$VPN_DNS_SRV1" ] || [ -n "$VPN_DNS_SRV2" ]; then
+cat >> ~/usr/etc/ppp/options.xl2tpd <<EOF
 cat >> /etc/ppp/options.xl2tpd <<EOF
 ms-dns $DNS_SRV2
 EOF
 fi
 
 # Create VPN credentials
-conf_bk "/etc/ppp/chap-secrets"
-cat > /etc/ppp/chap-secrets <<EOF
+# conf_bk "/etc/ppp/chap-secrets"
+# cat > /etc/ppp/chap-secrets <<EOF
+cat > ~/usr/etc/ppp/chap-secrets <<EOF
 "$VPN_USER" l2tpd "$VPN_PASSWORD" *
 EOF
 
-conf_bk "/etc/ipsec.d/passwd"
+# conf_bk "/etc/ipsec.d/passwd"
 VPN_PASSWORD_ENC=$(openssl passwd -1 "$VPN_PASSWORD")
-cat > /etc/ipsec.d/passwd <<EOF
+# cat > /etc/ipsec.d/passwd <<EOF
+cat > ~/usr/etc/ipsec.d/passwd <<EOF
 $VPN_USER:$VPN_PASSWORD_ENC:xauth-psk
 EOF
 
+if false; then
+sudo cp ~/usr/etc/ipsec.conf         /etc/ipsec.conf
+sudo cp ~/usr/etc/ipsec.secrets      /etc/ipsec.secrets
+sudo cp ~/usr/etc/xl2tpd/xl2tpd.conf /etc/xl2tpd/xl2tpd.conf
+sudo cp ~/usr/etc/ppp/options.xl2tpd /etc/ppp/options.xl2tpd
+sudo cp ~/usr/etc/ppp/chap-secrets   /etc/ppp/chap-secrets
+sudo cp ~/usr/etc/ipsec.d/passwd     /etc/ipsec.d/passwd
+fi
+
 bigecho "Updating sysctl settings..."
+
+
+# whooooops, it's server, not client...
+
+
+# sudo vim /etc/sysctl.conf
 
 if ! grep -qs "hwdsl2 VPN script" /etc/sysctl.conf; then
   conf_bk "/etc/sysctl.conf"
